@@ -9,7 +9,7 @@ import axios from 'axios';
 interface ComplianceCredentials {
   projectRef: string;
   serviceRoleKey: string;
-  managementApiKey?: string;
+  personalAccessToken?: string;
 }
 
 interface ComplianceData {
@@ -201,7 +201,7 @@ export default function Home() {
           <div className="text-sm text-blue-800 space-y-2">
             <p><strong>Project Reference:</strong> Found in your Supabase project URL (e.g., https://your-project-ref.supabase.co)</p>
             <p><strong>Service Role Key:</strong> Found in your project settings under API → Project API keys (service_role key)</p>
-            <p><strong>Management API Key (Optional):</strong> Required for PITR checking. Generate from your Supabase account settings.</p>
+            <p><strong>Personal Access Token:</strong> Required for PITR checking. Generate from your Supabase account settings.</p>
           </div>
         </div>
 
@@ -209,8 +209,8 @@ export default function Home() {
           <div className="flex">
             <AlertCircle className="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
-              <strong>Note:</strong> RLS checking requires a one-time SQL function setup in your database. 
-              If the function doesn't exist, you'll be provided with setup instructions.
+              <strong>Note:</strong> MFA & RLS checking require a one-time SQL function setup in your database. PITR checking requires a personal access token.
+              If the functions don't exist, you'll be provided with setup instructions.
             </div>
           </div>
         </div>

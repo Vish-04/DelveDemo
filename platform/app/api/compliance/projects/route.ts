@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectRef, serviceRoleKey, managementApiKey } = await request.json();
+    const { projectRef, personalAccessToken } = await request.json();
 
-    if (!projectRef || !serviceRoleKey) {
+    if (!projectRef || !personalAccessToken) {
       return NextResponse.json(
-        { error: 'Project reference and service role key are required' },
+        { error: 'Project reference and personal access token are required' },
         { status: 400 }
       );
     }
@@ -23,17 +23,20 @@ export async function POST(request: NextRequest) {
     };
 
     // If management API key is provided, attempt to check PITR status
-    if (managementApiKey) { 
+    if (personalAccessToken) { 
       try {
-        const response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}`, {
+        const response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/backups`, {
           headers: {
-            'Authorization': `Bearer ${managementApiKey}`,
+            'Authorization': `Bearer ${personalAccessToken}`,
             'Content-Type': 'application/json'
           }
         });
 
+        console.log("RESPONSE", response);
+
         if (response.ok) {
           const projectInfo = await response.json();
+          console.log("PROJECT INFO", projectInfo);
           projectData.pitr_enabled = projectInfo.database?.pitr_enabled || false;
           projectData.status = projectData.pitr_enabled ? 'pass' : 'fail';
           projectData.backup_retention_days = projectInfo.database?.backup_retention_days || 7;
@@ -54,7 +57,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: [projectData],
       summary,
-      note: managementApiKey 
+      note: personalAccessToken 
         ? 'PITR status checked via Management API' 
         : 'PITR status checking requires Supabase Management API access'
     });

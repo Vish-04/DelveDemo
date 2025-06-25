@@ -6,7 +6,7 @@ interface ComplianceFormProps {
   onSubmit: (credentials: {
     projectRef: string;
     serviceRoleKey: string;
-    managementApiKey?: string;
+    personalAccessToken?: string;
   }) => void;
   isLoading: boolean;
 }
@@ -35,14 +35,14 @@ const Key = ({ className }: { className?: string }) => (
 export default function ComplianceForm({ onSubmit, isLoading }: ComplianceFormProps) {
   const [projectRef, setProjectRef] = useState('');
   const [serviceRoleKey, setServiceRoleKey] = useState('');
-  const [managementApiKey, setManagementApiKey] = useState('');
+  const [personalAccessToken, setPersonalAccessToken] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       projectRef,
       serviceRoleKey,
-      managementApiKey: managementApiKey || undefined
+      personalAccessToken: personalAccessToken || undefined
     });
   };
 
@@ -99,16 +99,16 @@ export default function ComplianceForm({ onSubmit, isLoading }: ComplianceFormPr
 
 
         <div>
-          <label htmlFor="managementApiKey" className="block text-sm font-medium text-gray-700 mb-1">
-            Management API Key <span className="text-gray-400">(Optional)</span>
+          <label htmlFor="personalAccessToken" className="block text-sm font-medium text-gray-700 mb-1">
+            Personal Access Token <span className="text-gray-400">(Optional)</span>
           </label>
           <div className="relative">
             <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="password"
-              id="managementApiKey"
-              value={managementApiKey}
-              onChange={(e) => setManagementApiKey(e.target.value)}
+              id="personalAccessToken"
+              value={personalAccessToken}
+              onChange={(e) => setPersonalAccessToken(e.target.value)}
               className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="sbp_xxx..."
             />
