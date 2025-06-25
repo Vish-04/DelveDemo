@@ -24,6 +24,28 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Validate credentials by testing connection with admin access
+    try {
+      const { error: validationError } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1
+      });
+      
+      if (validationError) {
+        console.log('Key validation failed:', validationError);
+        return NextResponse.json(
+          { error: 'Invalid project reference or service role key' },
+          { status: 401 }
+        );
+      }
+    } catch (error) {
+      console.log('Key validation error:', error);
+      return NextResponse.json(
+        { error: 'Invalid project reference or service role key' },
+        { status: 401 }
+      );
+    }
+
     // Fetch all users
     const { data: response, error } = await supabase.auth.admin.listUsers();
     // console.log("USERS RESPONSE:", response?.users);

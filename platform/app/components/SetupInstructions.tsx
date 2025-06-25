@@ -1,5 +1,7 @@
 'use client';
 
+import { Copy, X, AlertTriangle } from 'lucide-react';
+
 interface SetupInstructionsProps {
   instructions: {
     title: string;
@@ -9,13 +11,6 @@ interface SetupInstructionsProps {
   };
   onClose: () => void;
 }
-
-const Copy = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-    <path d="m5 15-4-4 4-4"></path>
-  </svg>
-);
 
 export default function SetupInstructions({ instructions, onClose }: SetupInstructionsProps) {
   const copyToClipboard = (text: string) => {
@@ -33,9 +28,7 @@ export default function SetupInstructions({ instructions, onClose }: SetupInstru
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
             >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="h-6 w-6" />
             </button>
           </div>
           <p className="mt-2 text-gray-600">{instructions.description}</p>
@@ -69,9 +62,7 @@ export default function SetupInstructions({ instructions, onClose }: SetupInstru
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
             <div className="flex">
-              <svg className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L3.316 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+              <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-800">
                 <p><strong>Important:</strong> You only need to create this function once in your Supabase database. After running the SQL, the RLS compliance checking will work for all future scans.</p>
               </div>

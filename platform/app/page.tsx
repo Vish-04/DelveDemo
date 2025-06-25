@@ -4,7 +4,11 @@ import { useState } from 'react';
 import ComplianceForm from './components/ComplianceForm';
 import ComplianceResults from './components/ComplianceResults';
 import SetupInstructions from './components/SetupInstructions';
+import InfoPopup from './components/InfoPopup';
+import Auth from './components/Auth';
+import { useAuth } from './contexts/AuthContext';
 import axios from 'axios';
+import { AlertCircle, Info, X, LogOut, User } from 'lucide-react';
 
 interface ComplianceCredentials {
   projectRef: string;
@@ -59,19 +63,13 @@ interface ComplianceData {
   };
 }
 
-const AlertCircle = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10"></circle>
-    <line x1="12" y1="8" x2="12" y2="12"></line>
-    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-  </svg>
-);
-
-export default function Home() {
+function ComplianceApp() {
+  const { user, signOut } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [complianceData, setComplianceData] = useState<ComplianceData>({});
   const [error, setError] = useState<string | null>(null);
   const [setupInstructions, setSetupInstructions] = useState<any>(null);
+  const [showInfoPopup, setShowInfoPopup] = useState(true);
 
   const runComplianceCheck = async (credentials: ComplianceCredentials) => {
     setIsLoading(true);
@@ -149,17 +147,42 @@ export default function Home() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">D</span>
+                  <span className="text-white font-bold text-sm">S</span>
                 </div>
               </div>
               <div className="ml-4">
-                <h1 className="text-xl font-semibold text-gray-900">Delve</h1>
+                <h1 className="text-xl font-semibold text-gray-900">SCC</h1>
                 <p className="text-sm text-gray-500">Supabase Compliance Checker</p>
               </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <User className="h-4 w-4" />
+                <span>{user?.email}</span>
+              </div>
+              <button
+                onClick={() => setShowInfoPopup(true)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Help & Instructions"
+              >
+                <Info className="h-5 w-5" />
+              </button>
+              <button
+                onClick={signOut}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Info Popup */}
+      {showInfoPopup && (
+        <InfoPopup setShowInfoPopup={setShowInfoPopup} />
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -217,4 +240,28 @@ export default function Home() {
       </div>
     </div>
   );
+}
+
+export default function Home() {
+  const { user, loading } = useAuth();
+
+  // Show loading spinner while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login form if not authenticated
+  if (!user) {
+    return <Auth />;
+  }
+
+  // User is authenticated, show the main app
+  return <ComplianceApp />;
 }

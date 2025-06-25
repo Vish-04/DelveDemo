@@ -11,6 +11,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate credentials by testing a simple Management API call first
+    try {
+      const validationResponse = await fetch(`https://api.supabase.com/v1/projects/${projectRef}`, {
+        headers: {
+          'Authorization': `Bearer ${personalAccessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!validationResponse.ok) {
+        console.log('Key validation failed with status:', validationResponse.status);
+        return NextResponse.json(
+          { error: 'Invalid project reference or personal access token' },
+          { status: 401 }
+        );
+      }
+    } catch (error) {
+      console.log('Key validation error:', error);
+      return NextResponse.json(
+        { error: 'Invalid project reference or personal access token' },
+        { status: 401 }
+      );
+    }
+
     // For PITR checking, we need to use Supabase Management API
     // This is a simplified check - in reality you'd need proper management API access
     

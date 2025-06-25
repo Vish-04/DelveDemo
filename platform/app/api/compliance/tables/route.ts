@@ -26,6 +26,28 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Validate credentials by testing connection with a simple query
+    try {
+      const { error: validationError } = await supabase
+        .from('information_schema.tables')
+        .select('count')
+        .limit(1);
+      
+      if (validationError) {
+        console.log('Key validation failed:', validationError);
+        return NextResponse.json(
+          { error: 'Invalid project reference or service role key' },
+          { status: 401 }
+        );
+      }
+    } catch (error) {
+      console.log('Key validation error:', error);
+      return NextResponse.json(
+        { error: 'Invalid project reference or service role key' },
+        { status: 401 }
+      );
+    }
+
     // console.log('Attempting to call RLS status function...');
 
     // Try to call the RLS checking function
