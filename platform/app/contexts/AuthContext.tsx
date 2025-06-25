@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../../supabase/client';
+import { supabase, getRedirectURL } from '../../supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -50,9 +50,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
+    const redirectURL = `${getRedirectURL()}/auth/callback`;
+    console.log('signUp redirectURL:', redirectURL);
+    
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: redirectURL,
+      },
     });
     return { error };
   };
@@ -62,7 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const redirectURL = `${getRedirectURL()}/auth/callback`;
+    console.log('resetPassword redirectURL:', redirectURL);
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectURL,
+    });
     return { error };
   };
 
