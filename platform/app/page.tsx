@@ -1,103 +1,220 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import ComplianceForm from './components/ComplianceForm';
+import ComplianceResults from './components/ComplianceResults';
+import SetupInstructions from './components/SetupInstructions';
+import axios from 'axios';
+
+interface ComplianceCredentials {
+  projectRef: string;
+  serviceRoleKey: string;
+  managementApiKey?: string;
+}
+
+interface ComplianceData {
+  users?: {
+    data: Array<{
+      id: string;
+      email: string;
+      mfa_enabled: boolean;
+      status: 'pass' | 'fail';
+    }>;
+    summary: {
+      total_users: number;
+      mfa_enabled: number;
+      mfa_disabled: number;
+      compliance_rate: number;
+    };
+  };
+  tables?: {
+    data: Array<{
+      schema: string;
+      table: string;
+      rls_enabled: boolean;
+      status: 'pass' | 'fail';
+    }>;
+    summary: {
+      total_tables: number;
+      rls_enabled: number;
+      rls_disabled: number;
+      compliance_rate: number;
+    };
+    note?: string;
+  };
+  projects?: {
+    data: Array<{
+      id: string;
+      name: string;
+      pitr_enabled: boolean;
+      status: 'pass' | 'fail';
+    }>;
+    summary: {
+      total_projects: number;
+      pitr_enabled: number;
+      pitr_disabled: number;
+      compliance_rate: number;
+    };
+    note?: string;
+  };
+}
+
+const AlertCircle = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="12" y1="8" x2="12" y2="12"></line>
+    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+  </svg>
+);
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [isLoading, setIsLoading] = useState(false);
+  const [complianceData, setComplianceData] = useState<ComplianceData>({});
+  const [error, setError] = useState<string | null>(null);
+  const [setupInstructions, setSetupInstructions] = useState<any>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const runComplianceCheck = async (credentials: ComplianceCredentials) => {
+    setIsLoading(true);
+    setError(null);
+    setComplianceData({});
+
+    try {
+      // Run all compliance checks in parallel
+      const [usersResponse, tablesResponse, projectsResponse] = await Promise.allSettled([
+        axios.post('/api/compliance/users', credentials),
+        axios.post('/api/compliance/tables', credentials),
+        axios.post('/api/compliance/projects', credentials)
+      ]);
+
+      const newComplianceData: ComplianceData = {};
+
+      // Process users response
+      if (usersResponse.status === 'fulfilled' && usersResponse.value.data.success) {
+        console.log("usersResponse.value.data", usersResponse.value.data);
+        newComplianceData.users = {
+          data: usersResponse.value.data.data,
+          summary: usersResponse.value.data.summary
+        };
+      } else if (usersResponse.status === 'fulfilled' && usersResponse.value.data.setup_required) {
+        // Handle setup instructions for MFA function
+        console.log("MFA function setup required:", usersResponse.value.data.instructions);
+        setSetupInstructions(usersResponse.value.data.instructions);
+      }
+
+      // Process tables response
+      if (tablesResponse.status === 'fulfilled' && tablesResponse.value.data.success) {
+        console.log("tablesResponse.value.data", tablesResponse.value.data);
+        newComplianceData.tables = {
+          data: tablesResponse.value.data.data,
+          summary: tablesResponse.value.data.summary,
+          note: tablesResponse.value.data.note
+        };
+      } else if (tablesResponse.status === 'fulfilled' && tablesResponse.value.data.setup_required) {
+        // Handle setup instructions for RLS function
+        console.log("RLS function setup required:", tablesResponse.value.data.instructions);
+        setSetupInstructions(tablesResponse.value.data.instructions);
+      }
+
+      // Process projects response
+      if (projectsResponse.status === 'fulfilled' && projectsResponse.value.data.success) {
+        console.log("projectsResponse.value.data", projectsResponse.value.data);
+        newComplianceData.projects = {
+          data: projectsResponse.value.data.data,
+          summary: projectsResponse.value.data.summary,
+          note: projectsResponse.value.data.note
+        };
+      }
+
+      setComplianceData(newComplianceData);
+
+      // Check if all requests failed
+      if (!newComplianceData.users && !newComplianceData.tables && !newComplianceData.projects) {
+        throw new Error('All compliance checks failed. Please verify your credentials and try again.');
+      }
+
+    } catch (err: any) {
+      console.error('Compliance check error:', err);
+      setError(err.message || 'An error occurred while running compliance checks');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">D</span>
+                </div>
+              </div>
+              <div className="ml-4">
+                <h1 className="text-xl font-semibold text-gray-900">Delve</h1>
+                <p className="text-sm text-gray-500">Supabase Compliance Checker</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Security Compliance Assessment
+          </h2>
+          <p className="text-gray-600">
+            Analyze your Supabase project for compliance with security best practices including 
+            Multi-Factor Authentication, Row Level Security, and Point in Time Recovery.
+          </p>
+        </div>
+
+        <ComplianceForm onSubmit={runComplianceCheck} isLoading={isLoading} />
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-red-800">{error}</div>
+            </div>
+          </div>
+        )}
+
+        {(complianceData.users || complianceData.tables || complianceData.projects) && (
+          <ComplianceResults data={complianceData} isLoading={isLoading} />
+        )}
+
+        {setupInstructions && (
+          <SetupInstructions 
+            instructions={setupInstructions} 
+            onClose={() => setSetupInstructions(null)} 
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        )}
+
+        {/* Instructions */}
+        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-md p-6">
+          <h3 className="text-lg font-medium text-blue-900 mb-3">Getting Started</h3>
+          <div className="text-sm text-blue-800 space-y-2">
+            <p><strong>Project Reference:</strong> Found in your Supabase project URL (e.g., https://your-project-ref.supabase.co)</p>
+            <p><strong>Service Role Key:</strong> Found in your project settings under API → Project API keys (service_role key)</p>
+            <p><strong>Management API Key (Optional):</strong> Required for PITR checking. Generate from your Supabase account settings.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div className="flex">
+            <AlertCircle className="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-blue-800">
+              <strong>Note:</strong> RLS checking requires a one-time SQL function setup in your database. 
+              If the function doesn't exist, you'll be provided with setup instructions.
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
