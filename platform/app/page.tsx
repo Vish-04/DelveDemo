@@ -6,6 +6,7 @@ import ComplianceResults from './components/ComplianceResults';
 import SetupInstructions from './components/SetupInstructions';
 import InfoPopup from './components/InfoPopup';
 import ComplianceLogs from './components/ComplianceLogs';
+import Chatbot from './components/Chatbot';
 import Auth from './components/Auth';
 import { useAuth } from './contexts/AuthContext';
 import axios from 'axios';
@@ -301,6 +302,9 @@ function ComplianceApp() {
           />
         )}
       </div>
+
+      {/* Chatbot */}
+      <Chatbot />
     </div>
   );
 }
