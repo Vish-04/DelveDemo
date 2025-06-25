@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logComplianceResult, determineComplianceStatus, extractSummaryData } from '../../../lib/compliance-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectRef, serviceRoleKey } = await request.json();
+    const { projectRef, serviceRoleKey, userEmail } = await request.json();
     
 
-    if (!projectRef || !serviceRoleKey) {
+    if (!projectRef || !serviceRoleKey || !userEmail) {
       return NextResponse.json(
-        { error: 'Project reference and service role key are required' },
+        { error: 'Project reference, service role key, and user email are required' },
         { status: 400 }
       );
     }
@@ -33,6 +34,19 @@ export async function POST(request: NextRequest) {
       
       if (validationError) {
         console.log('Key validation failed:', validationError);
+        
+        // Log the validation failure
+        if (userEmail) {
+          logComplianceResult({
+            userEmail,
+            checkType: 'MFA',
+            projectRef,
+            status: 'fail',
+            responseData: { error: 'Invalid project reference or service role key' },
+            errorMessage: 'Key validation failed: ' + (validationError.message || 'Unknown validation error')
+          });
+        }
+        
         return NextResponse.json(
           { error: 'Invalid project reference or service role key' },
           { status: 401 }
@@ -40,6 +54,19 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.log('Key validation error:', error);
+      
+      // Log the validation error
+      if (userEmail) {
+        logComplianceResult({
+          userEmail,
+          checkType: 'MFA',
+          projectRef,
+          status: 'fail',
+          responseData: { error: 'Invalid project reference or service role key' },
+          errorMessage: 'Key validation error: ' + (error instanceof Error ? error.message : 'Unknown error')
+        });
+      }
+      
       return NextResponse.json(
         { error: 'Invalid project reference or service role key' },
         { status: 401 }
@@ -122,10 +149,25 @@ $$;`,
         ]
     };
     
-    return NextResponse.json({
+    const setupResponse = {
         setup_required: true,
         instructions: setupInstructions
-    });
+    };
+
+    // Log the setup required result
+    if (userEmail) {
+      logComplianceResult({
+        userEmail,
+        checkType: 'MFA',
+        projectRef,
+        status: 'fail',
+        responseData: setupResponse,
+        setupTitle: setupInstructions.title,
+        note: 'MFA function setup required'
+      });
+    }
+
+    return NextResponse.json(setupResponse);
     }
     
     // console.log('MFA function exists, proceeding with compliance check...');
@@ -195,15 +237,56 @@ $$;`,
 
     // console.log('Summary:', summary);
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: userCompliance,
       summary,
       note: `MFA status checked using custom SQL function for ${userCompliance.length} users.`
-    });
+    };
+
+    // Log the compliance result
+    const status = determineComplianceStatus(responseData);
+    const summaryData = extractSummaryData(responseData);
+    
+    // Log compliance result (don't await to avoid blocking response)
+    if (userEmail) {
+      logComplianceResult({
+        userEmail,
+        checkType: 'MFA',
+        projectRef,
+        status,
+        responseData,
+        totalItems: summaryData.totalItems,
+        compliantItems: summaryData.compliantItems,
+        complianceRate: summaryData.complianceRate,
+        note: responseData.note
+      });
+    }
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error checking user compliance:', error);
+    
+    // Log the error (extract from request body if available)
+    try {
+      const requestBody = await request.json();
+      const { projectRef, userEmail } = requestBody;
+      
+      if (userEmail && projectRef) {
+        logComplianceResult({
+          userEmail,
+          checkType: 'MFA',
+          projectRef,
+          status: 'fail',
+          responseData: { error: 'Internal server error' },
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } catch (parseError) {
+      // Ignore parsing errors in error handler
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

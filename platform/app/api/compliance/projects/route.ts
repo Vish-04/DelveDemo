@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logComplianceResult, determineComplianceStatus, extractSummaryData } from '../../../lib/compliance-logger';
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectRef, personalAccessToken } = await request.json();
+    const { projectRef, personalAccessToken, userEmail } = await request.json();
 
-    if (!projectRef || !personalAccessToken) {
+    if (!projectRef || !personalAccessToken || !userEmail) {
       return NextResponse.json(
-        { error: 'Project reference and personal access token are required' },
+        { error: 'Project reference, personal access token, and user email are required' },
         { status: 400 }
       );
     }
@@ -22,6 +23,19 @@ export async function POST(request: NextRequest) {
 
       if (!validationResponse.ok) {
         console.log('Key validation failed with status:', validationResponse.status);
+        
+        // Log the validation failure
+        if (userEmail) {
+          logComplianceResult({
+            userEmail,
+            checkType: 'PITR',
+            projectRef,
+            status: 'fail',
+            responseData: { error: 'Invalid project reference or personal access token' },
+            errorMessage: `Key validation failed with status: ${validationResponse.status}`
+          });
+        }
+        
         return NextResponse.json(
           { error: 'Invalid project reference or personal access token' },
           { status: 401 }
@@ -29,6 +43,19 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.log('Key validation error:', error);
+      
+      // Log the validation error
+      if (userEmail) {
+        logComplianceResult({
+          userEmail,
+          checkType: 'PITR',
+          projectRef,
+          status: 'fail',
+          responseData: { error: 'Invalid project reference or personal access token' },
+          errorMessage: 'Key validation error: ' + (error instanceof Error ? error.message : 'Unknown error')
+        });
+      }
+      
       return NextResponse.json(
         { error: 'Invalid project reference or personal access token' },
         { status: 401 }
@@ -56,11 +83,9 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        console.log("RESPONSE", response);
 
         if (response.ok) {
           const projectInfo = await response.json();
-          console.log("PROJECT INFO", projectInfo);
           projectData.pitr_enabled = projectInfo.database?.pitr_enabled || false;
           projectData.status = projectData.pitr_enabled ? 'pass' : 'fail';
           projectData.backup_retention_days = projectInfo.database?.backup_retention_days || 7;
@@ -77,17 +102,58 @@ export async function POST(request: NextRequest) {
       compliance_rate: projectData.pitr_enabled ? 100 : 0
     };
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: [projectData],
       summary,
       note: personalAccessToken 
         ? 'PITR status checked via Management API' 
         : 'PITR status checking requires Supabase Management API access'
-    });
+    };
+
+    // Log the compliance result
+    const status = determineComplianceStatus(responseData);
+    const summaryData = extractSummaryData(responseData);
+    
+    // Log compliance result (don't await to avoid blocking response)
+    if (userEmail) {
+      logComplianceResult({
+        userEmail,
+        checkType: 'PITR',
+        projectRef,
+        status,
+        responseData,
+        totalItems: summaryData.totalItems,
+        compliantItems: summaryData.compliantItems,
+        complianceRate: summaryData.complianceRate,
+        note: responseData.note
+      });
+    }
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error checking project compliance:', error);
+    
+    // Log the error (extract from request body if available)
+    try {
+      const requestBody = await request.json();
+      const { projectRef, userEmail } = requestBody;
+      
+      if (userEmail && projectRef) {
+        logComplianceResult({
+          userEmail,
+          checkType: 'PITR',
+          projectRef,
+          status: 'fail',
+          responseData: { error: 'Internal server error' },
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } catch (parseError) {
+      // Ignore parsing errors in error handler
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

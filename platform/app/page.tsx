@@ -5,10 +5,11 @@ import ComplianceForm from './components/ComplianceForm';
 import ComplianceResults from './components/ComplianceResults';
 import SetupInstructions from './components/SetupInstructions';
 import InfoPopup from './components/InfoPopup';
+import ComplianceLogs from './components/ComplianceLogs';
 import Auth from './components/Auth';
 import { useAuth } from './contexts/AuthContext';
 import axios from 'axios';
-import { AlertCircle, Info, X, LogOut, User } from 'lucide-react';
+import { AlertCircle, Info, X, LogOut, User, History } from 'lucide-react';
 
 interface ComplianceCredentials {
   projectRef: string;
@@ -70,6 +71,12 @@ function ComplianceApp() {
   const [error, setError] = useState<string | null>(null);
   const [setupInstructions, setSetupInstructions] = useState<any>(null);
   const [showInfoPopup, setShowInfoPopup] = useState(true);
+  const [activeTab, setActiveTab] = useState<'compliance' | 'logs'>('compliance');
+  
+  // Form state that persists across tab switches
+  const [projectRef, setProjectRef] = useState('');
+  const [serviceRoleKey, setServiceRoleKey] = useState('');
+  const [personalAccessToken, setPersonalAccessToken] = useState('');
 
   const runComplianceCheck = async (credentials: ComplianceCredentials) => {
     setIsLoading(true);
@@ -77,11 +84,17 @@ function ComplianceApp() {
     setComplianceData({});
 
     try {
+      // Add user email to credentials for logging
+      const credentialsWithEmail = {
+        ...credentials,
+        userEmail: user?.email
+      };
+
       // Run all compliance checks in parallel
       const [usersResponse, tablesResponse, projectsResponse] = await Promise.allSettled([
-        axios.post('/api/compliance/users', credentials),
-        axios.post('/api/compliance/tables', credentials),
-        axios.post('/api/compliance/projects', credentials)
+        axios.post('/api/compliance/users', credentialsWithEmail),
+        axios.post('/api/compliance/tables', credentialsWithEmail),
+        axios.post('/api/compliance/projects', credentialsWithEmail)
       ]);
 
       const newComplianceData: ComplianceData = {};
@@ -196,47 +209,97 @@ function ComplianceApp() {
           </p>
         </div>
 
-        <ComplianceForm onSubmit={runComplianceCheck} isLoading={isLoading} />
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-red-800">{error}</div>
-            </div>
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('compliance')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'compliance'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Compliance Check
+              </button>
+              <button
+                onClick={() => setActiveTab('logs')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
+                  activeTab === 'logs'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <History className="w-4 h-4 mr-1" />
+                Compliance Logs
+              </button>
+            </nav>
           </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'compliance' && (
+          <>
+            <ComplianceForm 
+              onSubmit={runComplianceCheck} 
+              isLoading={isLoading}
+              projectRef={projectRef}
+              serviceRoleKey={serviceRoleKey}
+              personalAccessToken={personalAccessToken}
+              setProjectRef={setProjectRef}
+              setServiceRoleKey={setServiceRoleKey}
+              setPersonalAccessToken={setPersonalAccessToken}
+            />
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-red-800">{error}</div>
+                </div>
+              </div>
+            )}
+
+            {(complianceData.users || complianceData.tables || complianceData.projects) && (
+              <ComplianceResults data={complianceData} isLoading={isLoading} />
+            )}
+
+            {setupInstructions && (
+              <SetupInstructions 
+                instructions={setupInstructions} 
+                onClose={() => setSetupInstructions(null)} 
+              />
+            )}
+
+            {/* Instructions */}
+            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-md p-6">
+              <h3 className="text-lg font-medium text-blue-900 mb-3">Getting Started</h3>
+              <div className="text-sm text-blue-800 space-y-2">
+                <p><strong>Project Reference:</strong> Found in your Supabase project URL (e.g., https://your-project-ref.supabase.co)</p>
+                <p><strong>Service Role Key:</strong> Found in your project settings under API → Project API keys (service_role key)</p>
+                <p><strong>Personal Access Token:</strong> Required for PITR checking. Generate from your Supabase account settings.</p>
+              </div>
+            </div>
+
+            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <strong>Note:</strong> MFA & RLS checking require a one-time SQL function setup in your database. PITR checking requires a personal access token.
+                  If the functions don't exist, you'll be provided with setup instructions.
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
-        {(complianceData.users || complianceData.tables || complianceData.projects) && (
-          <ComplianceResults data={complianceData} isLoading={isLoading} />
-        )}
-
-        {setupInstructions && (
-          <SetupInstructions 
-            instructions={setupInstructions} 
-            onClose={() => setSetupInstructions(null)} 
+        {activeTab === 'logs' && user?.email && (
+          <ComplianceLogs 
+            userEmail={user.email} 
+            projectRef={projectRef || undefined}
           />
         )}
-
-        {/* Instructions */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-md p-6">
-          <h3 className="text-lg font-medium text-blue-900 mb-3">Getting Started</h3>
-          <div className="text-sm text-blue-800 space-y-2">
-            <p><strong>Project Reference:</strong> Found in your Supabase project URL (e.g., https://your-project-ref.supabase.co)</p>
-            <p><strong>Service Role Key:</strong> Found in your project settings under API → Project API keys (service_role key)</p>
-            <p><strong>Personal Access Token:</strong> Required for PITR checking. Generate from your Supabase account settings.</p>
-          </div>
-        </div>
-
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
-          <div className="flex">
-            <AlertCircle className="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <strong>Note:</strong> MFA & RLS checking require a one-time SQL function setup in your database. PITR checking requires a personal access token.
-              If the functions don't exist, you'll be provided with setup instructions.
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

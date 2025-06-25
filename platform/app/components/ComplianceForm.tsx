@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { ShieldCheck, Database, Key } from 'lucide-react';
 
 interface ComplianceFormProps {
@@ -10,12 +9,24 @@ interface ComplianceFormProps {
     personalAccessToken?: string;
   }) => void;
   isLoading: boolean;
+  projectRef: string;
+  serviceRoleKey: string;
+  personalAccessToken: string;
+  setProjectRef: (value: string) => void;
+  setServiceRoleKey: (value: string) => void;
+  setPersonalAccessToken: (value: string) => void;
 }
 
-export default function ComplianceForm({ onSubmit, isLoading }: ComplianceFormProps) {
-  const [projectRef, setProjectRef] = useState('');
-  const [serviceRoleKey, setServiceRoleKey] = useState('');
-  const [personalAccessToken, setPersonalAccessToken] = useState('');
+export default function ComplianceForm({ 
+  onSubmit, 
+  isLoading, 
+  projectRef,
+  serviceRoleKey,
+  personalAccessToken,
+  setProjectRef,
+  setServiceRoleKey,
+  setPersonalAccessToken
+}: ComplianceFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

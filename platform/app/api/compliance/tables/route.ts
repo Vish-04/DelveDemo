@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logComplianceResult, determineComplianceStatus, extractSummaryData } from '../../../lib/compliance-logger';
 
 export async function POST(request: NextRequest) {
   
   try {
     const requestBody = await request.json();
     
-        const { projectRef, serviceRoleKey } = requestBody;
+        const { projectRef, serviceRoleKey, userEmail } = requestBody;
 
-    if (!projectRef || !serviceRoleKey) {
+    if (!projectRef || !serviceRoleKey || !userEmail) {
       console.log('Missing credentials - returning 400');
       return NextResponse.json(
-        { error: 'Project reference and service role key are required' },
+        { error: 'Project reference, service role key, and user email are required' },
         { status: 400 }
       );
     }
@@ -28,13 +29,26 @@ export async function POST(request: NextRequest) {
 
     // Validate credentials by testing connection with a simple query
     try {
-      const { error: validationError } = await supabase
-        .from('information_schema.tables')
-        .select('count')
-        .limit(1);
+      const { error: validationError } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1
+      });
       
       if (validationError) {
         console.log('Key validation failed:', validationError);
+        
+        // Log the validation failure
+        if (userEmail) {
+          logComplianceResult({
+            userEmail,
+            checkType: 'RLS',
+            projectRef,
+            status: 'fail',
+            responseData: { error: 'Invalid project reference or service role key' },
+            errorMessage: 'Key validation failed: ' + (validationError.message || 'Unknown validation error')
+          });
+        }
+        
         return NextResponse.json(
           { error: 'Invalid project reference or service role key' },
           { status: 401 }
@@ -42,6 +56,19 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.log('Key validation error:', error);
+      
+      // Log the validation error
+      if (userEmail) {
+        logComplianceResult({
+          userEmail,
+          checkType: 'RLS',
+          projectRef,
+          status: 'fail',
+          responseData: { error: 'Invalid project reference or service role key' },
+          errorMessage: 'Key validation error: ' + (error instanceof Error ? error.message : 'Unknown error')
+        });
+      }
+      
       return NextResponse.json(
         { error: 'Invalid project reference or service role key' },
         { status: 401 }
@@ -99,10 +126,25 @@ $$;`,
         ]
       };
         
-        return NextResponse.json({
+        const setupResponse = {
           setup_required: true,
           instructions: setupInstructions
-        });
+        };
+
+        // Log the setup required result
+        if (userEmail) {
+          logComplianceResult({
+            userEmail,
+            checkType: 'RLS',
+            projectRef,
+            status: 'fail',
+            responseData: setupResponse,
+            setupTitle: setupInstructions.title,
+            note: 'SQL function setup required'
+          });
+        }
+
+        return NextResponse.json(setupResponse);
     }
 
     // console.log('RLS function executed successfully, got', tableCompliance?.length, 'results');
@@ -117,15 +159,56 @@ $$;`,
     };
 
     // console.log('Returning success response with', tableCompliance.length, 'tables');
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: tableCompliance,
       summary,
       note: `RLS status checked using custom SQL function for ${tableCompliance.length} tables.`
-    });
+    };
+
+    // Log the compliance result
+    const status = determineComplianceStatus(responseData);
+    const summaryData = extractSummaryData(responseData);
+    
+    // Log compliance result (don't await to avoid blocking response)
+    if (userEmail) {
+      logComplianceResult({
+        userEmail,
+        checkType: 'RLS',
+        projectRef,
+        status,
+        responseData,
+        totalItems: summaryData.totalItems,
+        compliantItems: summaryData.compliantItems,
+        complianceRate: summaryData.complianceRate,
+        note: responseData.note
+      });
+    }
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error checking table compliance:', error);
+    
+    // Log the error (extract from request body if available)
+    try {
+      const requestBody = await request.json();
+      const { projectRef, userEmail } = requestBody;
+      
+      if (userEmail && projectRef) {
+        logComplianceResult({
+          userEmail,
+          checkType: 'RLS',
+          projectRef,
+          status: 'fail',
+          responseData: { error: 'Internal server error' },
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } catch (parseError) {
+      // Ignore parsing errors in error handler
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
